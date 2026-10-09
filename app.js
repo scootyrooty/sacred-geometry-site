@@ -4,7 +4,7 @@
   const scenes=AmbientScenes.list();
   if(!scenes.length)throw Error('No geometry scenes registered');
   for(const scene of scenes){const option=document.createElement('option');option.value=scene.id;option.textContent=scene.title;$('sceneId').append(option);}
-  const defaults = {sceneId:scenes[0].id, sequence:'all', transition:8, duration:120, hold:30, palette:'spectrum', brightness:115, weight:140, glow:0, trails:0, size:100, stars:70, quality:'soft'};
+  const defaults = {sceneId:scenes[0].id, sequence:'all', transition:8, duration:120, hold:30, palette:'spectrum', brightness:115, weight:140, glow:0, trails:0, size:100, stars:70, quality:'soft', resolution:'native'};
   const STORAGE_KEY = 'ambient-geometry-settings-v1';
   const defaultDurations=Object.fromEntries(scenes.map(scene=>[scene.id,scene.defaultDuration || defaults.duration]));
   const defaultDurationRevisions=Object.fromEntries(scenes.map(scene=>[scene.id,scene.durationRevision || 1]));
@@ -129,7 +129,7 @@
       const begin=performance.now();render(elapsed,false);nextDraw=AmbientRenderer.nextFrameDeadline(now,nextDraw,interval);
       const commandMs=performance.now()-begin;meterDraws++;meterCost+=commandMs;
       const stages=renderer.performance;meterProjection+=stages.projectionMs;meterVisibility+=stages.visibilityMs;meterStrokes+=stages.strokeMs;
-      if(settings.quality==='auto'&&!AmbientPlatform.embedded){
+      if(settings.resolution==='auto'&&!AmbientPlatform.embedded){
         frameCosts.push(commandMs);
         if(frameCosts.length>60)frameCosts.shift();
         if(now-lastQualityCheck>8000&&frameCosts.length===60){
@@ -202,6 +202,8 @@
     $('grid').textContent=locked?'Resume journey':'Hold this view';
     $('play').textContent=locked?'▷':'Ⅱ';$('play').setAttribute('aria-label',locked?'Resume journey':'Hold this view');$('play').setAttribute('aria-pressed',String(locked));$('play').title=locked?'Resume journey':'Hold this view';
     $('sequence').disabled=scenes.length<2;
+    // The Android player always uses its native display buffer.
+    $('resolution-row').hidden=AmbientPlatform.embedded;
     $('transition').disabled=scenes.length<2||settings.sequence!=='all';
     $('collection-note').textContent=scenes.length<2?'New geometries appear here as the collection grows.':`${scenes.length} geometries · transitions add time between journeys.`;
     syncForm(lastSample?.scene || AmbientScenes.get(settings.sceneId));remote?.sync();
@@ -222,6 +224,7 @@
     if(key==='duration'){
       settings.sceneId=lastSample.scene.id;settings.durations[settings.sceneId]=+element.value;
     }else settings[key]=typeof defaults[key]==='number'?+element.value:element.value;
+    if(key==='resolution'){budgetDpr=1.6;frameCosts=[];lastQualityCheck=performance.now();}
     if(['sceneId','sequence','transition','duration','hold'].includes(key)){clearNavigation();elapsed=0;}
     syncControls();save();resize();render(elapsed);
   });
@@ -248,7 +251,7 @@
   $('play').addEventListener('click',toggleHold);
   $('grid').addEventListener('click',toggleHold);
   $('restart').addEventListener('click',()=>{elapsed=0;clearNavigation();syncControls();render(elapsed);notify('Journey restarted');});
-  $('reset').addEventListener('click',()=>{settings={...defaults,forms:{},views:{},durations:{...defaultDurations},durationRevisions:{...defaultDurationRevisions}};clearNavigation();elapsed=0;animationElapsed=0;syncControls();save();resize();render(elapsed);notify('Default settings restored');});
+  $('reset').addEventListener('click',()=>{settings={...defaults,forms:{},views:{},durations:{...defaultDurations},durationRevisions:{...defaultDurationRevisions}};budgetDpr=1.6;frameCosts=[];lastQualityCheck=performance.now();clearNavigation();elapsed=0;animationElapsed=0;syncControls();save();resize();render(elapsed);notify('Default settings restored');});
   $('project').addEventListener('click',()=>{panel(false);setQuiet(true);keepAwake();});
   $('fullscreen').addEventListener('click',async()=>{
     try{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else notify('For fullscreen on iPhone, launch from your Home Screen.');}catch{notify('Fullscreen is unavailable here. Try opening in a browser or from your Home Screen.');}

@@ -55,7 +55,8 @@
     <label for="size">Geometry size <output id="size-value">100%</output></label><input id="size" type="range" min="65" max="115" step="5" value="100">
     <div class="section-label">SPACE</div>
     <label for="stars">Starfield <output id="stars-value">70%</output></label><input id="stars" type="range" min="0" max="100" value="70">
-    <label class="select-label" for="quality">Drawing quality<select id="quality"><option value="auto">Auto · balanced</option><option value="soft">Gentle · simpler lines</option><option value="high">Fine · more detail</option></select></label>
+    <label class="select-label" for="quality">Drawing quality<select id="quality"><option value="auto">Balanced · smooth lines</option><option value="soft">Gentle · simpler lines</option><option value="high">Fine · more detail</option></select></label>
+    <label class="select-label" id="resolution-row" for="resolution">Canvas resolution<select id="resolution"><option value="native">Native · sharpest</option><option value="auto">Adaptive · lighter load</option><option value="reduced">Reduced · lowest load</option></select></label>
     <div class="button-row"><button id="project">Project / hide controls</button><button id="reset">Reset settings</button></div>
     <div class="offline"><span id="offline-dot"></span><p id="offline-status" role="status">Preparing offline playback…</p></div>
     <details id="iphone-help"><summary>Play offline on iPhone</summary><p>Before the event, open this app in Safari from an HTTPS address. Use Share → Add to Home Screen, then launch it from that icon. Wait for “Saved for offline playback,” close it, disconnect from the internet, and reopen it to check.</p><p>For a projector, use Control Center → Screen Mirroring. A nearby Wi-Fi connection may still be needed even without internet. Rotate your phone to landscape and hide the controls.</p><p>Keep the app visible. “Keep awake” works when your browser supports it; otherwise set Auto-Lock to Never for the show. Controls appear on the mirrored screen too.</p></details>
@@ -65,7 +66,7 @@
   </section>
   <div id="toast" role="status" hidden></div>
   <noscript>This animation needs JavaScript enabled.</noscript>
-  <script>window.AmbientBuild={"commit":"8c41f5f4daaba813f5d5c774c26d0f05d5a861e0","dirty":false,"cacheVersion":"ambient-scenes-c24d9bb9b82b","scenes":["grid-of-life","torus"]};
+  <script>window.AmbientBuild={"commit":"6d370ef0668a12b30d8ff51669f1d5c69e65dda5","dirty":false,"cacheVersion":"ambient-scenes-ac71d495e086","scenes":["grid-of-life","torus"]};
 </script>
   <!-- RUNTIME SCRIPTS:BEGIN -->
   <script src="./core/platform.js"></script>

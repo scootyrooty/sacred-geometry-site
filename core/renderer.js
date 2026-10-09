@@ -134,7 +134,9 @@
       canvas.height=exact?nativeViewport.height:Math.round(height*(window.devicePixelRatio||1));
       dpr=canvas.width/width;
     }else{
-      const cap=settings.quality==='soft'?1:settings.quality==='high'?2:budgetDpr;
+      // Resolution is independent of curve sampling, shading and frame cadence.
+      // Missing preferences also use native pixels when upgrading older installs.
+      const cap=settings.resolution==='reduced'?1:settings.resolution==='auto'?budgetDpr:Infinity;
       dpr=Math.min(window.devicePixelRatio||1,cap);
       canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
     }
@@ -176,20 +178,19 @@
       const columns=[[cz*cy,sz*cy,-sy],[cz*sy*sx-sz*cx,sz*sy*sx+cz*cx,cy*sx],[cz*sy*cx+sz*sx,sz*sy*cx-cz*sx,cy*cx]],rotation=new Float32Array(9);
       for(let j=0;j<3;j++)for(let i=0;i<3;i++){const b=[scene.view.right,scene.view.up,scene.view.forward][i],p=columns[j];rotation[j*3+i]=n*(b[0]*p[0]+b[1]*p[1]+b[2]*p[2]);}
       const drawScale=scale*zoom(scene,seconds,canonical),stroke=Math.max(.65,Math.min(width,height)/850)*settings.weight/100;
-      const mix=AmbientTimeline.smooth(Math.min(1,pose.amount/.2)),dx=.13/Math.hypot(.13,.11),dy=.11/Math.hypot(.13,.11);
-      const extent=RADIUS+(Math.hypot((width/2+stroke*12)/drawScale,(height/2+stroke*12)/drawScale)-RADIUS)*pose.amount;
-      const centers=mix<1?scene.geometry.paths.map(path=>{
+      // The analytic mean of each winding supplies its original curve color.
+      // Camera distance/FOV never selects a different shading model.
+      const centers=scene.geometry.paths.map(path=>{
         const uv=scene.gpu.uv,a=uv[path.indices[0]],sign=uv[path.indices[1]][3]>0?1:-1;
         const x=shape.minor/2*(a[0]*shape.cos+a[1]*shape.sin*sign),y=shape.minor/2*(a[1]*shape.cos-a[0]*shape.sin*sign);
         return {x:rotation[0]*x+rotation[3]*y,y:-(rotation[1]*x+rotation[4]*y),z:rotation[2]*x+rotation[5]*y};
-      }):[];
+      });
       const passes=[{width:stroke*canvas.width/width,alpha:.63,lightness:59},{width:stroke*.36*canvas.width/width,alpha:.38,lightness:84}].map(pass=>{
-        const stops=[];for(let i=0;i<=12;i++){const t=(i/12*2-1)*extent;stops.push(...rgb({x:dx*t,y:dy*t,z:0},phase,pass.lightness));}
-        return {...pass,alpha:pass.alpha*opacity*settings.brightness/100,stops:new Float32Array(stops),colors:centers.map(p=>rgb(p,phase,pass.lightness))};
+        return {...pass,alpha:pass.alpha*opacity*settings.brightness/100,colors:new Float32Array(centers.flatMap(p=>rgb(p,phase,pass.lightness)))};
       });
       const projected=now();let prepared=projected;
       const state={rotation,pose,drawScale,width,height,pixelWidth:canvas.width,pixelHeight:canvas.height,markVisibility(){prepared=now();}};
-      if(!gpu.draw(scene,state,shape,{passes,mix,energy:.84+.16*Math.sin(TAU*phase*4),fieldScale:[dx*width/(2*extent*drawScale),-dy*height/(2*extent*drawScale)]})){gpuFailed=true;return false;}
+      if(!gpu.draw(scene,state,shape,{passes})){gpuFailed=true;return false;}
       // Both buffers already have the exact native pixel dimensions. Copy
       // one-to-one, avoiding fractional layout transforms and resampling.
       ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalCompositeOperation='screen';ctx.drawImage(gpu.canvas,0,0);ctx.restore();
@@ -370,26 +371,7 @@
         if(path.closed)ctx.closePath();
       }
     };
-    const batchMix=settings.quality==='soft'?AmbientTimeline.smooth(Math.min(1,pose.amount/.2)):0;
-    if(batchMix>0&&geometry.paths.length){
-      // Match Gentle's edge batching: one spatial color field per line pass,
-      // with separate visible/obscured batches while opacity is transitioning.
-      const dx=.13/Math.hypot(.13,.11),dy=.11/Math.hypot(.13,.11);
-      const extent=RADIUS+(Math.hypot(halfX,halfY)-RADIUS)*pose.amount;
-      for(const pass of passes){
-        if(pass.alpha===0)continue;ctx.lineWidth=stroke*pass.width;
-        for(const obscured of opaque?[false,true]:[false]){
-          const visibility=obscured?1-opaque:1;if(visibility<=0)continue;
-          const gradient=ctx.createLinearGradient(-dx*extent*drawScale,-dy*extent*drawScale,dx*extent*drawScale,dy*extent*drawScale);
-          const alpha=pass.alpha*opacity*brightness*visibility*batchMix*(.84+.16*Math.sin(TAU*phase*4));
-          for(let i=0;i<=12;i++){const t=(i/12*2-1)*extent;gradient.addColorStop(i/12,color({x:dx*t,y:dy*t,z:0},phase,alpha,pass.core?84:59));}
-          ctx.strokeStyle=gradient;ctx.beginPath();
-          for(let p=0;p<geometry.paths.length;p++)trace(geometry.paths[p],geometry.curveSegments[p],obscured);
-          ctx.stroke();
-        }
-      }
-    }
-    if(batchMix<1)for(let p=0;p<geometry.paths.length;p++){
+    for(let p=0;p<geometry.paths.length;p++){
       const path=geometry.paths[p],center={x:0,y:0,z:0},count=path.indices.length;
       for(const i of path.indices){const v=points[i];center.x+=v.x/count;center.y+=v.y/count;center.z+=v.z/count;}
       for(const pass of passes){
@@ -397,7 +379,7 @@
         ctx.lineWidth=stroke*pass.width;
         for(const obscured of opaque?[false,true]:[false]){
           const visibility=obscured?1-opaque:1;if(visibility<=0)continue;
-          ctx.strokeStyle=color(center,phase,pass.alpha*opacity*brightness*visibility*(1-batchMix),pass.core?84:59);
+          ctx.strokeStyle=color(center,phase,pass.alpha*opacity*brightness*visibility,pass.core?84:59);
           ctx.beginPath();
           trace(path,geometry.curveSegments[p],obscured);
           ctx.stroke();
