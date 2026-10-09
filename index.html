@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#030309">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="An offline collection of sacred geometry, flowing light, and a seamless starfield.">
+  <title>Ambient Geometry</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <canvas id="scene" aria-label="Sacred geometry slowly rotates in a field of stars."></canvas>
+  <div id="chrome">
+    <header>
+      <div class="wordmark"><span class="sigil" aria-hidden="true">✧</span><span>AMBIENT GEOMETRY<small id="study">STUDY 001</small></span></div>
+      <nav aria-label="Playback controls">
+        <button id="play" class="icon-button" aria-label="Pause animation" title="Pause">Ⅱ</button>
+        <button id="fullscreen" class="icon-button" aria-label="Enter fullscreen" title="Fullscreen">⛶</button>
+        <button id="settings" class="icon-button" aria-label="Open controls" aria-expanded="false" aria-controls="panel" title="Controls">☷</button>
+      </nav>
+    </header>
+    <footer>
+      <div><p class="eyebrow" id="scene-eyebrow">64 TETRAHEDRA · ONE CONTINUOUS JOURNEY</p><h1 id="scene-title">Grid of Life</h1><p class="subtitle" id="scene-subtitle">Light in perfect relation.</p></div>
+      <div class="phase-block"><span id="phase">THE GRID</span><span id="time">0:00 / 2:00</span><div class="progress"><i id="progress"></i></div></div>
+    </footer>
+    <p id="hint">Tap the sky to hide or show controls</p>
+  </div>
+  <section id="panel" aria-label="Animation settings" hidden>
+    <div class="panel-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h2>The light room</h2></div><button id="close" class="icon-button" aria-label="Close controls">×</button></div>
+    <p class="panel-intro">A slow orbit. A moment of recognition.<br>Everything returns to where it began.</p>
+    <div class="section-label">COLLECTION</div>
+    <label class="select-label" for="sceneId"><span id="scene-choice-label">Geometry</span><select id="sceneId"></select></label>
+    <label id="form-row" class="select-label" for="form" hidden>Form<select id="form"></select></label>
+    <label id="view-row" class="select-label" for="view" hidden>View<select id="view"></select></label>
+    <label class="select-label" for="journey-stop">Go to / hold a view<select id="journey-stop"></select></label>
+    <p class="small-note">Choose a stop to hold its form and view. Surface flow continues. Choose “Continue journey” to resume.</p>
+    <label class="select-label" for="sequence">Playback<select id="sequence"><option value="single">Repeat this geometry</option><option value="all">Flow through collection</option></select></label>
+    <p id="collection-note" class="small-note">New geometries appear here as the collection grows.</p>
+    <label for="transition">Time between geometries <output id="transition-value">8 sec</output></label><input id="transition" type="range" min="3" max="20" value="8" disabled>
+    <div class="section-label">RHYTHM</div>
+    <label class="select-label" for="duration">Full journey<select id="duration"><option value="90">1½ minutes</option><option value="120" selected>2 minutes</option><option value="180">3 minutes</option><option value="240">4 minutes</option><option value="720">12 minutes</option></select></label>
+    <label for="hold">Time in the sacred view <output id="hold-value">30 sec</output></label><input id="hold" type="range" min="20" max="60" step="5" value="30">
+    <div class="button-row"><button id="grid">Hold the grid</button><button id="restart">Restart journey</button></div>
+    <div class="section-label">LIGHT</div>
+    <label class="select-label" for="palette">Color palette<select id="palette"><option value="spectrum">Prismatic dream</option><option value="aurora">Electric aurora</option><option value="violet">Ultraviolet</option><option value="ember">Solar ember</option></select></label>
+    <label for="brightness">Brightness <output id="brightness-value">115%</output></label><input id="brightness" type="range" min="60" max="180" step="5" value="115">
+    <label for="weight">Line weight <output id="weight-value">140%</output></label><input id="weight" type="range" min="75" max="250" step="5" value="140">
+    <label for="glow">Glow <output id="glow-value">55%</output></label><input id="glow" type="range" min="0" max="100" value="55">
+    <label for="trails">Light echoes <output id="trails-value">25%</output></label><input id="trails" type="range" min="0" max="100" value="25">
+    <label for="size">Geometry size <output id="size-value">100%</output></label><input id="size" type="range" min="65" max="115" step="5" value="100">
+    <div class="section-label">SPACE</div>
+    <label for="stars">Starfield <output id="stars-value">70%</output></label><input id="stars" type="range" min="0" max="100" value="70">
+    <label class="select-label" for="quality">Drawing quality<select id="quality"><option value="auto">Auto · balanced</option><option value="soft">Gentle · simpler lines</option><option value="high">Fine · more detail</option></select></label>
+    <div class="button-row"><button id="project">Project / hide controls</button><button id="reset">Reset settings</button></div>
+    <div class="offline"><span id="offline-dot"></span><p id="offline-status" role="status">Preparing offline playback…</p></div>
+    <details id="iphone-help"><summary>Play offline on iPhone</summary><p>Before the event, open this app in Safari from an HTTPS address. Use Share → Add to Home Screen, then launch it from that icon. Wait for “Saved for offline playback,” close it, disconnect from the internet, and reopen it to check.</p><p>For a projector, use Control Center → Screen Mirroring. A nearby Wi-Fi connection may still be needed even without internet. Rotate your phone to landscape and hide the controls.</p><p>Keep the app visible. “Keep awake” works when your browser supports it; otherwise set Auto-Lock to Never for the show. Controls appear on the mirrored screen too.</p></details>
+    <details id="app-info"><summary id="info-toggle">App information</summary><p id="build-info"></p><p id="render-info"></p><p id="performance-info"></p><pre id="native-info"></pre></details>
+    <p id="awake-status" class="small-note">Tap a control to enable keep-awake if supported.</p>
+    <p class="small-note">Silent by design · settings saved on this device</p>
+  </section>
+  <div id="toast" role="status" hidden></div>
+  <noscript>This animation needs JavaScript enabled.</noscript>
+  <script>window.AmbientBuild={"commit":"f49c5a4152a8608d863a1b373867e4f04a8873ad","dirty":false,"cacheVersion":"ambient-scenes-5ba856e99146","scenes":["grid-of-life","torus"]};
+</script>
+  <!-- RUNTIME SCRIPTS:BEGIN -->
+  <script src="./core/platform.js"></script>
+  <script src="./core/scenes.js"></script>
+  <script src="./core/timeline.js"></script>
+  <script src="./geometry.js"></script>
+  <script src="./scenes/grid-of-life.js"></script>
+  <script src="./core/torus-gpu.js"></script>
+  <script src="./scenes/torus.js"></script>
+  <script src="./core/renderer.js"></script>
+  <script src="./core/remote.js"></script>
+  <script src="./app.js"></script>
+  <!-- RUNTIME SCRIPTS:END -->
+</body>
+</html>
