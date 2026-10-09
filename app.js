@@ -4,7 +4,7 @@
   const scenes=AmbientScenes.list();
   if(!scenes.length)throw Error('No geometry scenes registered');
   for(const scene of scenes){const option=document.createElement('option');option.value=scene.id;option.textContent=scene.title;$('sceneId').append(option);}
-  const defaults = {sceneId:scenes[0].id, sequence:'all', transition:8, duration:120, hold:30, palette:'spectrum', brightness:115, weight:140, glow:55, trails:25, size:100, stars:70, quality:'soft'};
+  const defaults = {sceneId:scenes[0].id, sequence:'all', transition:8, duration:120, hold:30, palette:'spectrum', brightness:115, weight:140, glow:0, trails:0, size:100, stars:70, quality:'soft'};
   const STORAGE_KEY = 'ambient-geometry-settings-v1';
   const defaultDurations=Object.fromEntries(scenes.map(scene=>[scene.id,scene.defaultDuration || defaults.duration]));
   const defaultDurationRevisions=Object.fromEntries(scenes.map(scene=>[scene.id,scene.durationRevision || 1]));
