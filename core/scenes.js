@@ -47,6 +47,7 @@
         if(!Array.isArray(stops)||!stops.length)fail('journeyStops must return nonempty stops');
         if(!stops.every((s,i)=>s&&/^[a-z][a-z0-9-]*$/.test(s.id)&&typeof s.title==='string'&&s.title.trim()&&Number.isFinite(s.progress)&&s.progress>=0&&s.progress<1&&(!i?s.progress===0:s.progress>stops[i-1].progress)))fail('journey stops need ids, titles and increasing progress starting at zero');
         if(new Set(stops.map(s=>s.id)).size!==stops.length)fail('duplicate journey stop id');
+        if(!stops.every((s,i)=>s.leaveProgress===undefined||Number.isFinite(s.leaveProgress)&&s.leaveProgress>=s.progress&&s.leaveProgress<(stops[i+1]?.progress ?? 1)))fail('journey leaveProgress must end before the next stop');
       }
     }
     if(definition.defaultDuration!==undefined&&(!Number.isFinite(definition.defaultDuration)||definition.defaultDuration<=0))fail('defaultDuration must be positive');

@@ -109,11 +109,12 @@
     viewAliases:{orbit:'all',inside:'interior'},defaultView:'all',defaultDuration:720,
     journeyStops:({variantId,parameters,viewId}) => {
       const selected=viewId==='all'?['side','overhead','interior']:[viewId];
-      const offsets={side:0,overhead:70/220,interior:150/220};
+      const offsets={side:0,overhead:70/220,interior:150/220},leaves={side:60/220,overhead:130/220,interior:210/220};
       const forms=parameters.automatic?['ring','horn','spindle']:[variantId];
       return forms.flatMap((form,i)=>selected.map(view=>({
         id:form+'-'+view,title:form[0].toUpperCase()+form.slice(1)+' · '+view[0].toUpperCase()+view.slice(1),
-        progress:parameters.automatic?tours[i][0]+(tours[i][1]-tours[i][0])*(selected.length===1?0:offsets[view]):selected.length===1?0:offsets[view]
+        progress:parameters.automatic?tours[i][0]+(tours[i][1]-tours[i][0])*(selected.length===1?0:offsets[view]):selected.length===1?0:offsets[view],
+        leaveProgress:selected.length===1?undefined:parameters.automatic?tours[i][0]+(tours[i][1]-tours[i][0])*leaves[view]:leaves[view]
       })));
     },
     durationRevision:2,previousDefaultDuration:240,

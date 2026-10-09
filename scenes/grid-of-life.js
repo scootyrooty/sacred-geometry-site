@@ -11,7 +11,7 @@ AmbientScenes.register({
   // Preserve the original algebra and rounding of the exact isometric projection.
   project:([x,y,z])=>[(x-y)/Math.sqrt(2),-(x+y-2*z)/Math.sqrt(6),(x+y+z)/Math.sqrt(3)],
   views:[{id:'orbit',title:'Orbit'},{id:'sacred',title:'Sacred view'}],defaultView:'orbit',
-  journeyStops:()=>[{id:'sacred',title:'Sacred view',progress:0}],
+  journeyStops:({viewId})=>viewId==='sacred'?[{id:'sacred',title:'Sacred view',progress:0}]:[{id:'sacred',title:'Sacred view',progress:0,leaveProgress:0},{id:'orbit',title:'Orbit',progress:.25}],
   motion:({progress,eased,viewId})=>viewId==='sacred'?{x:0,y:0,z:0}
     : {x:Math.PI*2*eased,y:Math.PI*2*eased+.65*Math.sin(Math.PI*2*eased),z:Math.PI*4*eased},
   provenance:'../grid of life/Geometry notes.md',

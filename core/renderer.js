@@ -62,10 +62,10 @@
     const duration=AmbientTimeline.durationFor(scene,settings);
     const t=canonical||m.holding?0:AmbientTimeline.wrap(seconds,duration);
     const progress=t===0?0:(t-settings.hold)/(duration-settings.hold);
-    return {m,context:{seconds:t,phase:t/duration,progress,eased:AmbientTimeline.smooth(progress),holding:m.holding,animationPhase:animation?.phase,animationPeriod:animation?.period,variantId:variant?.id,parameters:variant?.parameters || {},viewId:view?.id}};
+    return {m,context:{seconds:t,phase:t/duration,progress,eased:AmbientTimeline.smooth(progress),holding:m.holding,animationPhase:animation?.phase,animationPeriod:animation?.period,variantId:variant?.id,parameters:variant?.parameters || {},viewId:view?.id,...(settings.pose?.sceneId===scene.id?settings.pose.context:{})}};
   }
   function camera(scene,seconds,canonical=false){
-    const pose=scene.camera?scene.camera(frameContext(scene,seconds,canonical).context):{amount:0,distance:scene.radius*3,fov:60,near:.01};
+    const pose=settings.pose?.sceneId===scene.id?settings.pose.camera:scene.camera?scene.camera(frameContext(scene,seconds,canonical).context):{amount:0,distance:scene.radius*3,fov:60,near:.01};
     if(!pose||!['amount','distance','fov','near'].every(k=>Number.isFinite(pose[k]))||pose.amount<0||pose.amount>1||pose.near<=0||pose.distance<=pose.near||pose.fov<=0||pose.fov>=175)throw Error(`Scene ${scene.id}: invalid perspective camera`);
     const normalization=RADIUS/scene.radius,distance=pose.distance*normalization;
     const invDistance=pose.amount/distance;
@@ -75,9 +75,14 @@
     const gain=1-pose.amount+pose.amount*focal/(distance*scale);
     const ratio=RADIUS*invDistance;
     const envelope=ratio>=1?1e6:Math.max(1,gain/Math.sqrt(1-ratio*ratio));
-    return {...pose,surfaceOpacity,invDistance,gain,near:pose.near*normalization,envelope};
+    return {...pose,surfaceOpacity,invDistance,gain,near:pose.near*normalization,modelNear:pose.near,envelope};
   }
   function animationClock(scene,seconds){const period=AmbientTimeline.durationFor(scene,settings);return {phase:AmbientTimeline.wrap(seconds,period)/period,period};}
+  function poseAt(scene,seconds,canonical=false,options=settings){
+    const before=settings;settings=options;
+    try{const {m,context}=frameContext(scene,seconds,canonical),raw=camera(scene,seconds,canonical);const {animationPhase,animationPeriod,...localContext}=context;return {sceneId:scene.id,motion:m,context:localContext,camera:{amount:raw.amount,distance:raw.distance,fov:raw.fov,fovAxis:raw.fovAxis,near:raw.modelNear,surfaceOpacity:raw.surfaceOpacity}};}
+    finally{settings=before;}
+  }
   function zoom(scene,seconds,canonical=false) {
     if(!scene.zoom)return 1;
     const {m,context}=frameContext(scene,seconds,canonical);
@@ -407,7 +412,7 @@
     timings={projectionMs:0,visibilityMs:0,strokeMs:0,backend:gpuFailed?'Canvas (GPU unavailable)':'Canvas'};
     settings=nextSettings;
     const withLayer=(layer,draw)=>{
-      settings=layer.settings || nextSettings;
+      settings=layer.pose?{...(layer.settings || nextSettings),pose:layer.pose}:layer.settings || nextSettings;
       try{return draw();}finally{settings=nextSettings;}
     };
     ctx.globalCompositeOperation='source-over';ctx.fillStyle='#030309';
@@ -438,7 +443,7 @@
       });
     }
   }
-  return {resize,render,project,zoom,camera,screenProject,setNativeViewport(viewport){nativeViewport={...viewport,layoutWidth:window.innerWidth,layoutHeight:window.innerHeight};},get deviceScale(){return dpr;},get performance(){return {...timings};}};
+  return {resize,render,project,zoom,camera,screenProject,poseAt,setNativeViewport(viewport){nativeViewport={...viewport,layoutWidth:window.innerWidth,layoutHeight:window.innerHeight};},get deviceScale(){return dpr;},get performance(){return {...timings};}};
   }
   // Advance from the previous deadline, preserving fractional time across late
   // callbacks. At most one update is submitted per callback; missed frames are skipped.

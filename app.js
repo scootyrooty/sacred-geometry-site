@@ -29,7 +29,7 @@
   const canvas = $('scene');
   const renderer=AmbientRenderer.create(canvas);
   let elapsed = 0, lastTick = performance.now(), nextDraw = -Infinity;
-  let animationElapsed=0,heldSeconds=null,heldStopId=null,heldPeriod=null,navigationFade=null;
+  let animationElapsed=0,heldSeconds=null,heldStopId=null,heldPeriod=null,heldPose=null,navigationFade=null,navigationTravel=null;
   let paused = false, locked = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let hidden = document.hidden, hideTimer, toastTimer, wakeLock;
   let frameCosts = [], budgetDpr = 1.6, lastQualityCheck = 0;
@@ -74,10 +74,20 @@
   }
   function playbackSample(seconds){
     const sample=AmbientTimeline.sample(seconds,scenes,settings,locked);
-    if(locked&&heldSeconds!==null){sample.local=heldSeconds;sample.layers=[{scene:sample.scene,seconds:heldSeconds,opacity:1,canonical:false}];}
+    if(locked&&heldSeconds!==null){sample.local=heldSeconds;sample.layers=[{scene:sample.scene,seconds:heldSeconds,opacity:1,canonical:false,pose:heldPose}];}
     sample.animationPeriod=heldPeriod ?? sample.period;
     sample.phase=wrap(animationElapsed,sample.animationPeriod)/sample.animationPeriod;
     sample.animationTime=wrap(animationElapsed,sample.animationPeriod);
+    if(navigationTravel){
+      const travel=navigationTravel,age=Math.max(0,animationElapsed-travel.start);
+      if(age>=travel.duration){navigationTravel=null;heldPose=null;}
+      else {
+        const local=AmbientTimeline.routeAt(travel.route,age);
+        let pose=age===0?travel.fromPose:null;
+        if(age>0&&age<travel.blendDuration){const target=renderer.poseAt(sample.scene,local);pose={sceneId:sample.scene.id,...AmbientTimeline.blendPose(travel.fromPose,target,AmbientTimeline.smooth(age/travel.blendDuration))};}
+        sample.local=local;sample.layers=[{scene:sample.scene,seconds:local,opacity:1,canonical:false,pose}];
+      }
+    }
     if(navigationFade){
       const amount=AmbientTimeline.smooth(Math.min(1,Math.max(0,animationElapsed-navigationFade.start)));
       if(amount>=1)navigationFade=null;
@@ -102,7 +112,7 @@
     const m=AmbientTimeline.motion(sample.scene,sample.local,settings,locked);
     const view=sample.scene.views.find(v=>v.id===(settings.views[sample.scene.id] || sample.scene.defaultView));
     const stop=AmbientTimeline.stopsFor(sample.scene,settings)[AmbientTimeline.stopIndex(sample.scene,sample.local,settings)];
-    $('phase').textContent=sample.blending?'FLOWING TO '+sample.next.title.toUpperCase():locked?stop.title.toUpperCase()+' · HELD':m.holding?sample.scene.canonicalLabel:sample.local>sample.duration-15?'RETURNING':renderer.camera(sample.scene,sample.local).amount>.9?'INTERIOR':view&&view.id!=='all'&&view.id!=='orbit'?view.title.toUpperCase():'IN ORBIT';
+    $('phase').textContent=navigationTravel?'MOVING TO VIEW':sample.blending?'FLOWING TO '+sample.next.title.toUpperCase():locked?stop.title.toUpperCase()+' · HELD':m.holding?sample.scene.canonicalLabel:sample.local>sample.duration-15?'RETURNING':renderer.camera(sample.scene,sample.local).amount>.9?'INTERIOR':view&&view.id!=='all'&&view.id!=='orbit'?view.title.toUpperCase():'IN ORBIT';
     syncStopSelection(sample.scene);
     $('time').textContent=`${clock(sample.time)} / ${clock(sample.period)}`;
     $('progress').style.width=`${sample.time/sample.period*100}%`;
@@ -112,7 +122,7 @@
     if(!hidden)meterCallbacks++;
     // The first rAF timestamp can precede script initialization or a resume.
     // Never wrap a tiny negative startup delta into the collection's last scene.
-    if(!hidden&&!paused){const delta=Math.max(0,now-lastTick)/1000;animationElapsed+=delta;if(!navigationFade)elapsed+=delta;}
+    if(!hidden&&!paused){const delta=Math.max(0,now-lastTick)/1000;animationElapsed+=delta;if(!navigationFade&&!navigationTravel&&!locked)elapsed+=delta;}
     lastTick=Math.max(lastTick,now);
     const interval=settings.quality==='high'?1000/60:1000/30;
     if(!hidden&&now>=nextDraw-.5){
@@ -140,8 +150,8 @@
   }
   function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(settings));}catch{}}
   function journeySettings(scene){return {...settings,views:{...settings.views,[scene.id]:scene.defaultView}};}
-  function clearNavigation(){navigationFade=null;heldSeconds=null;heldStopId=null;heldPeriod=null;locked=false;}
-  function goTo(scene,stop,hold=false,viewId){
+  function clearNavigation(){navigationFade=null;navigationTravel=null;heldSeconds=null;heldStopId=null;heldPeriod=null;heldPose=null;locked=false;}
+  function goTo(scene,stop,hold=false,viewId,routeFrom){
     // At most two outgoing layers: rapid deliberate taps cannot grow render work.
     const snapshot={...settings,forms:{...settings.forms},views:{...settings.views},durations:{...settings.durations}};
     const from=lastSample.layers.filter(layer=>layer.opacity>0).sort((a,b)=>b.opacity-a.opacity).slice(0,2).map(layer=>{
@@ -149,25 +159,38 @@
       return {...layer,settings:layer.settings || snapshot,animationPeriod:period,animationTime:(layer.animationPhase ?? lastSample.phase)*period};
     });
     const total=from.reduce((sum,layer)=>sum+layer.opacity,0);
+    const sameGeometry=lastSample.scene.id===scene.id&&from.every(layer=>layer.scene.id===scene.id);
+    const source=lastSample.layers.find(layer=>layer.scene.id===scene.id) || lastSample.layers[0];
+    const fromPose=sameGeometry?renderer.poseAt(scene,source.seconds,source.canonical,{...(source.settings || snapshot),pose:source.pose}):null;
+    const correctPose=sameGeometry&&(source.pose || viewId&&(snapshot.views[scene.id] || scene.defaultView)!==viewId);
     if(viewId)settings.views[scene.id]=viewId;
-    settings.sceneId=scene.id;locked=hold;heldSeconds=hold?stop.seconds:null;heldStopId=hold?stop.id:null;heldPeriod=hold?lastSample.animationPeriod:null;elapsed=stop.seconds;
+    settings.sceneId=scene.id;locked=hold;heldSeconds=hold?stop.seconds:null;heldStopId=hold?stop.id:null;heldPeriod=hold?lastSample.animationPeriod:null;heldPose=null;elapsed=stop.seconds;
     const period=heldPeriod ?? AmbientTimeline.sample(elapsed,scenes,settings,locked).period;
     animationElapsed=lastSample.phase*period;
-    navigationFade=paused?null:{from:from.map(layer=>({...layer,opacity:layer.opacity/total})),start:animationElapsed};
+    navigationFade=null;navigationTravel=null;
+    if(!paused){
+      if(sameGeometry){
+        const route=AmbientTimeline.routeFor(scene,routeFrom ?? lastSample.local,stop.seconds,settings),blendDuration=correctPose?2:0;
+        navigationTravel={route,duration:Math.max(route.duration,blendDuration),blendDuration,fromPose,start:animationElapsed,target:stop.seconds};
+        if(!navigationTravel.duration)navigationTravel=null;
+      }else navigationFade={from:from.map(layer=>({...layer,opacity:layer.opacity/total})),start:animationElapsed};
+    }
     lastTick=performance.now();save();render(elapsed);syncControls();
   }
   function navigate(key){
     const direction=key==='ArrowDown'||key==='ArrowRight'?1:-1;
     const scene=lastSample.scene,geometryOnly=key==='ArrowUp'||key==='ArrowDown';
-    let local=lastSample.local;
+    let local=navigationTravel?.target ?? lastSample.local;
+    let routeFrom=lastSample.local;
     const expanded=geometryOnly?settings:journeySettings(scene);
     // Leaving a fixed View resumes the complete view order at that same form.
     if(!geometryOnly&&(settings.views[scene.id] || scene.defaultView)!==scene.defaultView){
       const current=AmbientTimeline.stopsFor(scene,settings)[AmbientTimeline.stopIndex(scene,local,settings)];
       local=AmbientTimeline.stopsFor(scene,expanded).find(stop=>stop.id===current.id)?.seconds ?? local;
+      routeFrom=local;
     }
     const destination=AmbientTimeline.destination(scene,local,direction,scenes,expanded,geometryOnly);
-    goTo(destination.scene,destination.stop,false,!geometryOnly&&destination.scene.id===scene.id?scene.defaultView:undefined);return true;
+    goTo(destination.scene,destination.stop,false,!geometryOnly&&destination.scene.id===scene.id?scene.defaultView:undefined,routeFrom);return true;
   }
   function syncControls(){
     for(const key of Object.keys(defaults)){
@@ -177,6 +200,7 @@
     }
     $('grid').setAttribute('aria-pressed',String(locked));
     $('grid').textContent=locked?'Resume journey':'Hold this view';
+    $('play').textContent=locked?'▷':'Ⅱ';$('play').setAttribute('aria-label',locked?'Resume journey':'Hold this view');$('play').setAttribute('aria-pressed',String(locked));$('play').title=locked?'Resume journey':'Hold this view';
     $('sequence').disabled=scenes.length<2;
     $('transition').disabled=scenes.length<2||settings.sequence!=='all';
     $('collection-note').textContent=scenes.length<2?'New geometries appear here as the collection grows.':`${scenes.length} geometries · transitions add time between journeys.`;
@@ -206,21 +230,23 @@
   $('journey-stop').addEventListener('input',()=>{
     const scene=lastSample.scene,stop=AmbientTimeline.stopsFor(scene,journeySettings(scene)).find(s=>s.id===$('journey-stop').value);
     if(stop)goTo(scene,stop,true,scene.defaultView);
-    else if(locked){elapsed=heldSeconds ?? 0;clearNavigation();lastTick=performance.now();syncControls();render(elapsed);}
+    else if(locked)goTo(scene,{seconds:heldSeconds ?? 0},false);
   });
   $('scene').addEventListener('click',()=>{if(!$('panel').hidden)panel(false);else setQuiet(!document.body.classList.contains('quiet'));keepAwake();});
   $('settings').addEventListener('click',()=>panel($('panel').hidden));
   $('close').addEventListener('click',()=>panel(false));
-  $('play').addEventListener('click',async()=>{
-    paused=!paused;lastTick=performance.now();$('play').textContent=paused?'▷':'Ⅱ';$('play').setAttribute('aria-label',paused?'Play animation':'Pause animation');$('play').title=paused?'Play':'Pause';
-    if(paused&&wakeLock)await wakeLock.release();else keepAwake();
-  });
-  $('grid').addEventListener('click',()=>{
-    navigationFade=null;
-    if(!locked){settings.sceneId=lastSample.scene.id;heldSeconds=Math.min(lastSample.local,lastSample.duration-1e-7);heldStopId=null;heldPeriod=lastSample.animationPeriod;elapsed=heldSeconds;locked=true;save();}
-    else {elapsed=heldSeconds ?? 0;heldSeconds=null;heldStopId=null;heldPeriod=null;locked=false;}
+  function toggleHold(){
+    paused=false;
+    if(!locked){
+      const layer=lastSample.layers.find(layer=>layer.scene.id===lastSample.scene.id);
+      heldPose=layer?.pose || null;navigationFade=null;navigationTravel=null;
+      settings.sceneId=lastSample.scene.id;heldSeconds=Math.min(lastSample.local,lastSample.duration-1e-7);heldStopId=null;heldPeriod=lastSample.animationPeriod;elapsed=heldSeconds;locked=true;save();
+    }else goTo(lastSample.scene,{seconds:heldSeconds ?? 0},false);
     lastTick=performance.now();syncControls();render(elapsed);
-  });
+    keepAwake();
+  }
+  $('play').addEventListener('click',toggleHold);
+  $('grid').addEventListener('click',toggleHold);
   $('restart').addEventListener('click',()=>{elapsed=0;clearNavigation();syncControls();render(elapsed);notify('Journey restarted');});
   $('reset').addEventListener('click',()=>{settings={...defaults,forms:{},views:{},durations:{...defaultDurations},durationRevisions:{...defaultDurationRevisions}};clearNavigation();elapsed=0;animationElapsed=0;syncControls();save();resize();render(elapsed);notify('Default settings restored');});
   $('project').addEventListener('click',()=>{panel(false);setQuiet(true);keepAwake();});
@@ -286,14 +312,18 @@
   syncControls();resize();render(0);remote.sync();updateInfo();scheduleHide();offline();lastTick=performance.now();clearMeter(lastTick);requestAnimationFrame(frame);
   // A deterministic preview hook also allows future scenes to share the same clock.
   window.ambientPreview={
-    renderAt(seconds){paused=true;elapsed=seconds;animationElapsed=seconds;navigationFade=null;render(seconds);$('play').textContent='▷';$('play').setAttribute('aria-label','Play animation');},
+    renderAt(seconds){paused=true;elapsed=seconds;animationElapsed=seconds;navigationFade=null;navigationTravel=null;render(seconds);},
+    pauseClock(value){paused=value;lastTick=performance.now();},
+    advanceBy(seconds){paused=true;animationElapsed+=seconds;if(!navigationFade&&!navigationTravel&&!locked)elapsed+=seconds;render(elapsed);},
     projectAt:project,
     zoomAt(seconds){return renderer.zoom(AmbientScenes.get(settings.sceneId),locked&&heldSeconds!==null?heldSeconds:seconds,locked&&heldSeconds===null);},
     cameraAt(seconds){return renderer.camera(AmbientScenes.get(settings.sceneId),locked&&heldSeconds!==null?heldSeconds:seconds,locked&&heldSeconds===null);},
     screenAt(seconds){return renderer.screenProject(AmbientScenes.get(settings.sceneId),locked&&heldSeconds!==null?heldSeconds:seconds,locked&&heldSeconds===null);},
     get settings(){return {...settings};},
     get elapsed(){return elapsed;},
-    get navigating(){return !!navigationFade;},
+    get navigating(){return !!(navigationFade||navigationTravel);},
+    get navigation(){return navigationTravel?{type:'journey',target:navigationTravel.target,duration:navigationTravel.duration}:navigationFade?{type:'geometry'}:null;},
+    get pose(){const layer=lastSample.layers.find(layer=>layer.scene.id===lastSample.scene.id);return renderer.poseAt(lastSample.scene,layer?.seconds ?? lastSample.local,layer?.canonical,{...settings,pose:layer?.pose});},
     get performance(){return {...performanceStats};},
     get sample(){return lastSample;},
     get stats(){const scene=lastSample.scene;return {sceneId:scene.id,vertices:scene.geometry.vertices.length,edges:scene.geometry.edges.length,paths:scene.geometry.paths.length,scenes:scenes.length,deviceScale:renderer.deviceScale,held:locked};}

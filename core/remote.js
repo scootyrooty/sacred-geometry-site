@@ -25,7 +25,9 @@
    keepAwake();
    // Playback keys are shared by browser keyboards and Android's native bridge.
    // Ignore held-button repeats here; each deliberate press visits one destination.
-   if(arrow&&$('panel').hidden&&(AmbientPlatform.remote||document.body.classList.contains('quiet')||document.fullscreenElement)){
+   const quietPlayback=document.body.classList.contains('quiet');
+   const buttonFocused=controls().includes(document.activeElement);
+   if(arrow&&$('panel').hidden&&(quietPlayback||!buttonFocused&&(AmbientPlatform.remote||document.fullscreenElement))){
     if(!repeat)navigate(key);return true;
    }
    if(arrow){const now=performance.now();if(repeat&&now-lastArrow<140)return true;lastArrow=now;}
@@ -63,7 +65,8 @@
    }
   }
   document.addEventListener('keydown',event=>{
-   const playback=event.key.startsWith('Arrow')&&$('panel').hidden&&(document.body.classList.contains('quiet')||document.fullscreenElement);
+   const buttonFocused=$('panel').hidden&&document.querySelector('nav').contains(document.activeElement);
+   const playback=event.key.startsWith('Arrow')&&$('panel').hidden&&(document.body.classList.contains('quiet')||document.fullscreenElement||buttonFocused);
    if((AmbientPlatform.remote||playback)&&key(event.key,event.repeat)){event.preventDefault();event.stopImmediatePropagation();}
   },true);
   function sync(){if(!AmbientPlatform.remote)return;for(const el of document.querySelectorAll('select,input[type=range]')){
